@@ -2,7 +2,7 @@
 Duke ECE590 - Segmentation group for Kaggle Passanger Safety Screen 
 
 # Package Dependence
-1. Python package 
+Python package 
  - SimpleElastix
  ---- https://simpleelastix.readthedocs.io/GettingStarted.html
 
