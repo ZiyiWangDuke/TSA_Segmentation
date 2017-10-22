@@ -1,7 +1,8 @@
 
 # Convex optimization on vertical slicing
 ----------
-This repository provide useful tools for human segmentation in Python 3.5. It provides projection, keypoints and segmentation and functions to greatly reduce computation.
+This module provide useful tools for human segmentation in Python 3.5. It provides projection, keypoints and segmentation and functions to greatly reduce computation.
+
 ## Requirements:
 - numpy
 - matplotlib
@@ -142,21 +143,3 @@ print('probability for each hypothesis: ', probs)
 All data points in this example obviously belong to a single cluster. So the prediction is wrong. 
 Therefore we need to correct it based on our knowledge of geometry and human anatomy. See the detail
 in function **find_neck** and **correct_hypo** from convex.py
-
-## Some results
-
-
-```python
-from glob import glob
-flist = glob('./a3d/a3d/*.a3d')
-for i, fpath in enumerate(flist):
-    if i < 5:
-        data = read_data(fpath)
-        data = compress_data(data, ratio)
-        out,_ = ostu3d(data)
-        sampled, flags = sampling3d(out, 4, 4, threshold=0.2 ,nsampling=2)
-        layers = np.linspace(0, sampled.shape[2]-1, 40, dtype=np.int16)
-        x, y, z, b, d, flags = frame_gen(sampled, layers, ratio=ratio, verbose=False) # to print internal info, set verbose=True
-        flags = find_neck(out, flag)
-        print(flags)
-```
