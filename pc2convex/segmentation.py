@@ -61,7 +61,11 @@ def flag_parser(flags, ll, rl, bd, la, hd, ra, last_layer):
 
 def inconvex(pt, slices, tolerance=1.1):
     px, py, pz = pt
-    indx = np.where(slices[:,2]==pz)[0][0]
+    indx = np.where(slices[:,2]==pz)[0]
+    if not len(indx):
+        return False
+
+    indx = indx[0]
     x, y, z, b, d = slices[indx]
     return ((px-x)/b)**2 + ((py-y)/d)**2 < tolerance
 
@@ -71,7 +75,8 @@ def get_labels(pts, flags, segs, ratio=4):
     height = np.amax(pts[:,2])
     ll, rl, bd, la, ra, hd = segs
     for pt in pts:
-        x, y, z = np.divide(pt, ratio)
+        pt =  np.divide(pt, ratio).astype(np.int16)
+        x, y , z = pt
         if z <= flags['feet'][1]:
             if inconvex(pt, ll):
                 labels.append(15)
@@ -79,7 +84,6 @@ def get_labels(pts, flags, segs, ratio=4):
                 labels.append(16)
             else:
                 labels.append(-1)
-
         elif z <= flags['lower_leg'][1]:
             if inconvex(pt, ll):
                 labels.append(13)

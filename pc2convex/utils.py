@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from time import  time
 import random
 import os
+import config
 
 def get_name(fpath):
     '''
@@ -78,7 +79,7 @@ def get_height(bata):
     pts = get_points(bata)
     return pts[np.argsort(pts[:,2])][-len(pts)//100, 2]
 
-def seg_vis2d(pts, labels, savefig=True, fname=None):
+def seg_vis2d(pts, labels, data, savefig=True, fname=None):
     '''
     visualize the segmentation using 2d projection
     :param pts: coordinate of a point on human body
@@ -103,7 +104,7 @@ def seg_vis2d(pts, labels, savefig=True, fname=None):
         ax.set_ylim([0, data.shape[2]])
     if savefig:
         assert fname
-        plt.savefig(fname+'.png')
+        plt.savefig('./outputs/' + fname + '.png')
     else:
         plt.show()
 
