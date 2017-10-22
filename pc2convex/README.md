@@ -54,7 +54,7 @@ plt.show()
 ```
 
 
-![png](/images/output_5_0.png)
+![png](images/output_5_0.png)
 
 
 
@@ -75,7 +75,7 @@ print('Top of head  is at {}'.format(flags['top']))
 
 
 
-![png](/images/output_6_1.png)
+![png](images/output_6_1.png)
 
 
     The hip      is at 50
@@ -92,7 +92,7 @@ if not os.path.exists('keypoints'):
     os.mkdir('keypoints')
 save_pts('./keypoints/0d925b71485ba1f293ef8abb53fcd141.txt', x, y, z, ratio)
 # If you just need the keypoints, run
-# get_frames(./data/a3d_path, .//images/output_path, n_layers=40)
+# get_frames(./data/a3d_path, ./images/output_path, n_layers=40)
 ```
 
 
@@ -114,7 +114,7 @@ print('probability for each hypothesis: ', probs)
 ```
 
 
-![png](/images/output_10_0.png)
+![png](images/output_10_0.png)
 
 
     probability for each hypothesis:  [ 0.33409511  0.33472566  0.33117923]
@@ -133,7 +133,7 @@ print('probability for each hypothesis: ', probs)
 ```
 
 
-![png](/images/output_12_0.png)
+![png](images/output_12_0.png)
 
 
     probability for each hypothesis:  [ 0.3389522   0.33376836  0.32727944]
