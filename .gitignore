@@ -6,6 +6,9 @@
 *.nii
 *.txt
 
+#ouputs
+pc2convex/outputs/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
