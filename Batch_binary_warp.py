@@ -43,13 +43,18 @@ dir_warplabel = "./Batch_2D_warp_labels/" # directory of the labels generated
 dir_warpimg = "./Batch_2D_warp_niis/" # directory of the warpped image, which is generated from atlas image to be as close as fixed image
 dir_figure = "./Batch_Figure_binary/" # plot the figure of the comparison
 dir_binary = "./Batch_2D_binary/"
-dir_otsu = "./Batch_Otsu/"
+
+ShortImage = "./Templatess/ShortMask.nii"
+TallImage = "./Templatess/TallMask.nii"
+ShortLabel = "./Templatess/ShortLabel.nii"
+TallLabel = "./Templatess/TallLabel.nii"
 
 # obtain file name list
 filelist = os.listdir(os.getcwd()+"/Batch_2D_imgs/")
 filelist = [x.split('.')[0] for x in filelist]
 affine = np.diag([1, 2, 3, 1])
 
+fig, ax = plt.subplots(1,3,sharex=True,sharey=True,figsize = (24,12))
 for filename in filelist:
     # convert .png into .nii, which is the input format of the warpping class
     img_png = misc.imread(dir_fixedimg_png+filename+".png")
@@ -78,27 +83,18 @@ for filename in filelist:
     # the atlas image has height 602, the fixed image has height 552
     flag = height<(602+552)/2
 
-    # fig, ax = plt.subplots(1,3, sharex=True, sharey=True,figsize=(12,5))
-    # ax[0].imshow(img_png,aspect="auto",cmap='gray')
-    # ax[1].imshow(mask,aspect="auto", cmap='gray')
-    # ax[2].imshow(maskf,aspect="auto",cmap='gray')
-    # ax[2].set_title(thre, fontsize=20)
-    # # ax[1].hist(img_png.flatten(), bins=100,range=[0,250])
-    # # plt.show(block=False)
-    # fig.savefig(dir_otsu+filename+'.png')
-    #
     # read in png file and save as nii
     array_img = nib.Nifti1Image(np.rot90(1.0*maskf,3), affine)
     nib.save(array_img,dir_fixedimg_nii+filename+".nii")
 
-    # pdb.set_trace()
     # set up elastix filter for the warpping
     elastixImageFilter = sitk.ElastixImageFilter()
     elastixImageFilter.SetFixedImage(sitk.ReadImage(dir_fixedimg_nii+filename+".nii")) # fixed image
-    if flag:
-        elastixImageFilter.SetMovingImage(sitk.ReadImage("fixedImageB.nii")) # atlas image
-    else:
-        elastixImageFilter.SetMovingImage(sitk.ReadImage("atlasImageB.nii")) # atlas image
+
+    if flag: # for short person
+        elastixImageFilter.SetMovingImage(sitk.ReadImage(ShortImage)) # atlas image
+    else:  # for tall person
+        elastixImageFilter.SetMovingImage(sitk.ReadImage(TallImage)) # atlas image
 
     # set up parameters for the warpping, we use affine first and then use bspline interpolation for non-rigid warpping
     parameterMapVector = sitk.VectorOfParameterMap()
@@ -117,9 +113,9 @@ for filename in filelist:
     transformixImageFilter = sitk.TransformixImageFilter()
     transformixImageFilter.SetTransformParameterMap(transformParameterMap)
     if flag:
-        transformixImageFilter.SetMovingImage(sitk.ReadImage("fixedlabel.nii"))
+        transformixImageFilter.SetMovingImage(sitk.ReadImage(ShortLabel)) # fixed label
     else:
-        transformixImageFilter.SetMovingImage(sitk.ReadImage("atlaslabel.nii"))
+        transformixImageFilter.SetMovingImage(sitk.ReadImage(TallLabel)) # atlas label
 
     transformixImageFilter.Execute()
     sitk.WriteImage(transformixImageFilter.GetResultImage(),dir_warplabel+filename+"_label.nii")
@@ -130,17 +126,33 @@ for filename in filelist:
     resultlabel[resultlabel>1] = 1
     resultlabel = np.multiply(1.0*resultlabel,np.rot90(1.0*maskf,3))
     resultlabel[resultlabel <= 0] = 1
-    resultlabel = np.flipud(resultlabel)
+
+    # resultlabel = sp.signal.medfilt(resultlabel,[5,5])
+    resultlabel = np.multiply(np.round(np.divide(resultlabel,0.05)),0.05)
+    resultlabel[resultlabel>0.98]= 1
+    resultlabel[resultlabel<0.02]= 1
+
+    resultlabel = np.rot90(resultlabel,1)
+    # resultlabel = np.fliplr(resultlabel)
     # resultlabel = sp.signal.medfilt(resultlabel,[10,10])
     # rotate 180 and save it back
     array_img = nib.Nifti1Image(np.rot90(1.0*resultlabel,2), affine)
     nib.save(array_img,dir_warplabel+filename+"_label.nii")
 
-    # plot comparison figure
+    # visualize result labels
+    ax[0].imshow(img_png,aspect="auto",cmap="gray")
+    ax[1].imshow(resultlabel,aspect="auto",cmap="Accent")
+    ax[2].imshow(resultlabel,aspect="auto",cmap="Accent")
+    ax[2].imshow(img_png, aspect="auto",cmap='gray', alpha=0.4)
+    ax[1].set_title(filename,fontsize = 20)
+    fig.savefig(dir_figure+filename+'_ori.png')
+    # plt.show()
+
+    #plot comparison figure
     # if flag:
-    #     atlaslabel = nib.load("fixedlabelB.nii")
+    #     atlaslabel = nib.load(ShortLabel)
     # else:
-    #     atlaslabel = nib.load("atlaslabelB.nii")
+    #     atlaslabel = nib.load(TallLabel)
     # atlaslabel = atlaslabel.get_data()
     # resultImage = nib.load(dir_warpimg+filename+"_warp.nii")
     # resultImage = resultImage.get_data()
@@ -157,6 +169,6 @@ for filename in filelist:
     # ax[2].set_title('atlaslabel', fontsize=20)
     # ax[3].imshow(np.rot90(resultlabel),aspect="auto", cmap='Accent')
     # ax[3].set_title('resultlabel', fontsize=20)
-    # # plt.show(block=False)
-    # fig.savefig(dir_figure+filename+'.png')
-    # # pdb.set_trace()
+    # plt.show()
+    # # fig.savefig(dir_figure+filename+'.png')
+    # pdb.set_trace()
