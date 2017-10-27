@@ -47,7 +47,7 @@ for fpath in fpaths:
     segs = [interp(x) for x in segs]
 
     tic = time()
-    with raw data
+    # with raw data
     bita_, _ = utils.ostu3d(data_)
     pts_ = utils.get_points(bita_, thresh=0)
     labels_ = segmentation.get_labels(pts_, flags, segs, ratio=ratio)
