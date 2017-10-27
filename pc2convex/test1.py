@@ -58,8 +58,6 @@ for fpath in fpaths:
     # pts = utils.get_points(bita, thresh=0)
     # labels = segmentation.get_labels(pts, flags, segs, ratio=1)
 
-    pts, labels = segmentation.get_labels_from_data(data_, flags, segs, ratio=1)
-
     if ifplot:
         utils.seg_vis2d(pts, labels, bita, savefig=True, fname= fname)
         print('visualization takes {}s'.format(time() - tic))
