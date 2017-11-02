@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # find the neck using connected component in the vertical slice.
 # find the neck using connected component in the vertical slice.
 def find_chin(data, flags, eps=2, min_samples=3, ratio=8):
-    img = np.flipud(pc2img(data, axis=1))
+    img = np.flipud(pc2img(data, axis= 1))
     for indx in range(flags['shoulder'], int(flags['height'])):
         slice = img[indx, :]
         pts = get_points(slice.reshape([-1,1]))
@@ -15,12 +15,6 @@ def find_chin(data, flags, eps=2, min_samples=3, ratio=8):
         n_cluster = np.sum(counts >= min_samples)
         if n_cluster > 2 and flags['chin'] == 0:
             flags['chin'] = indx
-        if flags['chin'] != 0 and n_cluster == 2:
-            pts1 = np.array([pts[i,0] for i, l in enumerate(db.labels_) if l==0])
-            pts2 = np.array([pts[i,0] for i, l in enumerate(db.labels_) if l==1])
-            if abs(max(pts1) - min(pts2)) > 80 /ratio or abs(min(pts1) - max(pts2)) < 80 / ratio:
-                flags['top'] = indx
-                break
     return flags
 
 def find_chest_th(data, bd, flags):
@@ -59,13 +53,17 @@ def flag_parser(flags, ll, rl, bd, la, hd, ra, last_layer):
 
     return flags
 
-def inconvex(pt, slices, tolerance=1.1):
+def inconvex(pt, slices, tolerance=1.05):
     px, py, pz = pt
-    indx = np.where(slices[:,2]==pz)[0]
-    if not len(indx):
-        return False
-
-    indx = indx[0]
+    if pz < np.amin(slices[:,2]):
+        indx = 0
+    elif pz > np.amax(slices[:,2]):
+        indx = -1
+    else:
+        indx = np.where(slices[:,2]==pz)[0]
+        if not len(indx):
+            return False
+        indx = indx[0]
     x, y, z, b, d = slices[indx]
     return ((px-x)/b)**2 + ((py-y)/d)**2 < tolerance
 
@@ -84,6 +82,7 @@ def get_labels(pts, flags, segs, ratio=4):
                 labels.append(16)
             else:
                 labels.append(-1)
+
         elif z <= flags['lower_leg'][1]:
             if inconvex(pt, ll):
                 labels.append(13)
@@ -93,74 +92,114 @@ def get_labels(pts, flags, segs, ratio=4):
                 labels.append(-1)
 
         elif z <= flags['thigh_left'][1]:
-            if x < (flags['thigh_left'][0] + flags['thigh_right'][0]) / 2:
+            if inconvex(pt, ll):
                 labels.append(11)
-            else:
+            elif inconvex(pt, rl):
                 labels.append(12)
+            else:
+                labels.append(-1)
 
         elif z <= flags['waist'][1]:
-            th1 = np.arctan2(flags['waist_left'][1] - flags['thigh_left'][1],
-                             flags['waist_left'][0] - flags['thigh_left'][0])
-            th2 = np.arctan2(flags['waist_right'][1] - flags['thigh_right'][1],
-                             flags['waist_right'][0] - flags['thigh_right'][0])
-            theta1 = np.arctan2(z - flags['thigh_left'][1], x - flags['thigh_left'][0])
-            theta2 = np.arctan2(z - flags['thigh_right'][1], x - flags['thigh_right'][0])
-            if theta1 > th1:
-                labels.append(8)
-            elif theta2 < th2:
-                labels.append(10)
+            if inconvex(pt, ll) or inconvex(pt, rl) or inconvex(pt, bd):
+                th1 = np.arctan2(flags['waist_left'][1] - flags['thigh_left'][1],
+                                 flags['waist_left'][0] - flags['thigh_left'][0])
+                th2 = np.arctan2(flags['waist_right'][1] - flags['thigh_right'][1],
+                                 flags['waist_right'][0] - flags['thigh_right'][0])
+                theta1 = np.arctan2(z - flags['thigh_left'][1], x - flags['thigh_left'][0])
+                theta2 = np.arctan2(z - flags['thigh_right'][1], x - flags['thigh_right'][0])
+                # on leg
+                if z <= np.amax(ll[:,2]):
+                    if theta1 >= th1 and inconvex(pt, ll):
+                        labels.append(8)
+                    elif theta2 <= th2 and inconvex(pt, rl):
+                        labels.append(10)
+                    elif inconvex(pt, ll) or inconvex(pt, rl):
+                        labels.append(9)
+                    else:
+                        labels.append(-1)
+                elif inconvex(pt, bd) or inconvex(pt, ll) or inconvex(pt, rl):
+                    if theta1 >= th1:
+                        labels.append(8)
+                    elif theta2 <= th2:
+                        labels.append(10)
+                    else:
+                        labels.append(9)
             else:
-                labels.append(9)
+                labels.append(-1)
+
         elif z <= flags['chest'][2]:
-            if x < flags['chest'][0]:
+            if x < flags['chest'][0] and inconvex(pt, bd):
                 labels.append(6)
-            else:
+            elif inconvex(pt, bd):
                 labels.append(7)
+            else:
+                labels.append(-1)
+
         elif z <= flags['chin']:
-            th1 = np.arctan2(flags['shoulder_left_higher'][1] - flags['shoulder_left_lower'][1],
-                             flags['shoulder_left_higher'][0] - flags['shoulder_left_lower'][0])
-            th2 = np.arctan2(flags['shoulder_right_higher'][1] - flags['shoulder_right_lower'][1],
-                             flags['shoulder_right_higher'][0] - flags['shoulder_right_lower'][0])
-            theta1 = np.arctan2(z - flags['shoulder_left_lower'][1], x - flags['shoulder_left_lower'][0])
-            theta2 = np.arctan2(z - flags['shoulder_right_lower'][1], x - flags['shoulder_right_lower'][0])
-            if theta1 > th1:
-                labels.append(1)
-            elif 0 <= theta2 and theta2 < th2:
-                labels.append(3)
-            else:
-                vec = np.subtract(flags['neck'], flags['chest'])
-                cen = np.add(flags['chest'], vec * (z - flags['chest'][2]) / vec[2])
-                theta = np.arctan2(y - cen[1], x - cen[0])
-                if flags['chest_theta'] < theta and theta < flags['chest_theta'] + np.pi:
-                    labels.append(17)
+            if inconvex(pt, bd):
+                th1 = np.arctan2(flags['shoulder_left_higher'][1] - flags['shoulder_left_lower'][1],
+                                 flags['shoulder_left_higher'][0] - flags['shoulder_left_lower'][0])
+                th2 = np.arctan2(flags['shoulder_right_higher'][1] - flags['shoulder_right_lower'][1],
+                                 flags['shoulder_right_higher'][0] - flags['shoulder_right_lower'][0])
+                theta1 = np.arctan2(z - flags['shoulder_left_lower'][1], x - flags['shoulder_left_lower'][0])
+                theta2 = np.arctan2(z - flags['shoulder_right_lower'][1], x - flags['shoulder_right_lower'][0])
+                if theta1 > th1:
+                    labels.append(1)
+                elif 0 <= theta2 and theta2 < th2:
+                    labels.append(3)
                 else:
-                    labels.append(5)
+                    vec = np.subtract(flags['neck'], flags['chest'])
+                    cen = np.add(flags['chest'], vec * (z - flags['chest'][2]) / vec[2])
+                    theta = np.arctan2(y - cen[1], x - cen[0])
+                    if flags['chest_theta'] < theta and theta < flags['chest_theta'] + np.pi:
+                        labels.append(17)
+                    else:
+                        labels.append(5)
+            else:
+                labels.append(-1)
+
         elif z <= (flags['top'][1] * 1.5 + height * 0.5) / 2:
-            if x < flags['head'][0] - flags['head'][3]:
+
+            if inconvex(pt, la):
                 if z < flags['elbow_left']:
                     labels.append(1)
                 else:
                     labels.append(2)
-            elif x > flags['head'][0] + flags['head'][3]:
+            elif inconvex(pt, ra):
                 if z < flags['elbow_right']:
                     labels.append(3)
                 else:
                     labels.append(4)
-            else:
+            elif inconvex(pt, hd):
                 labels.append(0)
+            else:
+                labels.append(-1)
         else:
-            if x < flags['top'][0]:
+            if inconvex(pt, la):
                 if z < flags['elbow_left']:
                     labels.append(1)
                 else:
                     labels.append(2)
-            else:
+            elif inconvex(pt, ra):
                 if z < flags['elbow_right']:
                     labels.append(3)
                 else:
                     labels.append(4)
+            else:
+                labels.append(-1)
 
     return labels
+
+
+def get_labels_from_data(data, flags,
+                         segs, ratio):
+    x = np.arange(512)
+    y = np.arange(512)
+    z = np.arange(660)
+    xv, yv, zv = np.meshgrid(x, y, z)
+    pts = np.array([xv.ravel(), yv.ravel(), zv.ravel()]).T
+    labels = get_labels(pts, flags, segs, ratio=ratio)
+    return pts, labels
 
 if __name__ =='__main__':
     pass
