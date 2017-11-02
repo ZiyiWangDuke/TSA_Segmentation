@@ -1,4 +1,4 @@
-## This is a batch processing script
+## This is a batch processing script to generate labels based on warpping
 # Ziyi Wang, Oct.05.2017
 
 from __future__ import division, print_function
@@ -13,6 +13,7 @@ from scipy import misc
 import scipy as sp
 from scipy import signal
 
+# function for otsu threshold
 def otsu_threshold(im):
 
     pixel_counts = [np.sum(im == i) for i in range(256)]
@@ -37,17 +38,33 @@ def otsu_threshold(im):
 
     return s_max[0]
 
-dir_fixedimg_png = "./Batch_2D_imgs/" # directory of fixed image(.png), the one you wanna get labels for
+# input path
+# dir_fixedimg_png = "./Batch_2D_imgs/" # directory of fixed image(.png), the one you wanna get labels for
+dir_fixedimg_png = "./projections1247/"
 dir_fixedimg_nii = "./Batch_2D_niis/" # directory of fixed image(.nii)
 dir_warplabel = "./Batch_2D_warp_labels/" # directory of the labels generated
 dir_warpimg = "./Batch_2D_warp_niis/" # directory of the warpped image, which is generated from atlas image to be as close as fixed image
-dir_figure = "./Batch_Figure_binary/" # plot the figure of the comparison
-dir_binary = "./Batch_2D_binary/"
+# dir_figure = "./Batch_Figure_binary/" # plot the figure of the comparison
+dir_figure = "./Pro_figs/" # plot the figure of the comparison
+# dir_binary = "./Batch_2D_binary/"
 
 ShortImage = "./Templatess/ShortMask.nii"
 TallImage = "./Templatess/TallMask.nii"
+StraightImage = "./Templatess/StraightMask.nii"
+FatTallImage = "./Templatess/FatTallMask.nii"
+
 ShortLabel = "./Templatess/ShortLabel.nii"
 TallLabel = "./Templatess/TallLabel.nii"
+StraightLabel = "./Templatess/StraightLabel.nii"
+FatTallLabel = "./Templatess/FatTallLabel.nii"
+
+# set up flag for different Templates
+# flag = 1, short fit
+# flag = 2, tall fit
+# flag = 3, straight
+# flag = 4, tall fat
+mapImage = {1:ShortImage, 2:TallImage, 3:StraightImage, 4:FatTallImage}
+mapLabel = {1:ShortLabel, 2:TallLabel, 3:StraightLabel, 4:FatTallLabel}
 
 # obtain file name list
 filelist = os.listdir(os.getcwd()+"/Batch_2D_imgs/")
@@ -76,12 +93,40 @@ for filename in filelist:
     # maskf = sp.ndimage.binary_fill_holes(maskf, structure=np.ones((30,30)))
     maskf = sp.ndimage.binary_closing(maskf, structure=np.ones((10,10)))
 
-    # calculate the height of this sunject
+    # calculate the height of this subject
     height = np.sum(maskf,axis=1)
+
+    # seems wideDiff < 120 needs to use a separate Template
+    wide = np.amax(height)
+    wideIndex = np.argmax(height)
+    narrow = np.amin(height[wideIndex:wideIndex+200])
+    wideDiff = wide - narrow
+
     height = height>1
     height = np.sum(height)
+    # calculate the height normalized fat of this subject
+
+    fatper = int(np.sum(np.sum(maskf,axis=0),axis=0)/height)
     # the atlas image has height 602, the fixed image has height 552
-    flag = height<(602+552)/2
+    # ax[0].imshow(maskf,aspect = 'auto', cmap = 'Accent')
+    # ax[0].set_title('height: '+str(height)+'; fat: '+str(fatper)+'; Wide: '+str(wideDiff))
+    # plt.show(block=False)
+    # pdb.set_trace()
+    # continue
+
+    if wideDiff < 130: # straight hands up
+        flag = 3
+    else:
+        if height < 580: # short fit
+            flag = 1
+        else:
+            if fatper < 200: # tall fit
+                flag = 2
+            else: # tall fat
+                flag = 4
+
+    atlasImage = mapImage[flag]
+    atlaslabel = mapLabel[flag]
 
     # read in png file and save as nii
     array_img = nib.Nifti1Image(np.rot90(1.0*maskf,3), affine)
@@ -90,11 +135,7 @@ for filename in filelist:
     # set up elastix filter for the warpping
     elastixImageFilter = sitk.ElastixImageFilter()
     elastixImageFilter.SetFixedImage(sitk.ReadImage(dir_fixedimg_nii+filename+".nii")) # fixed image
-
-    if flag: # for short person
-        elastixImageFilter.SetMovingImage(sitk.ReadImage(ShortImage)) # atlas image
-    else:  # for tall person
-        elastixImageFilter.SetMovingImage(sitk.ReadImage(TallImage)) # atlas image
+    elastixImageFilter.SetMovingImage(sitk.ReadImage(atlasImage)) # atlas image
 
     # set up parameters for the warpping, we use affine first and then use bspline interpolation for non-rigid warpping
     parameterMapVector = sitk.VectorOfParameterMap()
@@ -112,10 +153,8 @@ for filename in filelist:
 
     transformixImageFilter = sitk.TransformixImageFilter()
     transformixImageFilter.SetTransformParameterMap(transformParameterMap)
-    if flag:
-        transformixImageFilter.SetMovingImage(sitk.ReadImage(ShortLabel)) # fixed label
-    else:
-        transformixImageFilter.SetMovingImage(sitk.ReadImage(TallLabel)) # atlas label
+    transformixImageFilter.SetMovingImage(sitk.ReadImage(atlaslabel)) # fixed label
+
 
     transformixImageFilter.Execute()
     sitk.WriteImage(transformixImageFilter.GetResultImage(),dir_warplabel+filename+"_label.nii")
@@ -144,31 +183,8 @@ for filename in filelist:
     ax[1].imshow(resultlabel,aspect="auto",cmap="Accent")
     ax[2].imshow(resultlabel,aspect="auto",cmap="Accent")
     ax[2].imshow(img_png, aspect="auto",cmap='gray', alpha=0.4)
+    ax[0].set_title('flag: '+str(flag),fontsize = 20)
+    ax[2].set_title('height: '+str(height)+'; fat: '+str(fatper)+'; Wide: '+str(wideDiff))
     ax[1].set_title(filename,fontsize = 20)
     fig.savefig(dir_figure+filename+'_ori.png')
     # plt.show()
-
-    #plot comparison figure
-    # if flag:
-    #     atlaslabel = nib.load(ShortLabel)
-    # else:
-    #     atlaslabel = nib.load(TallLabel)
-    # atlaslabel = atlaslabel.get_data()
-    # resultImage = nib.load(dir_warpimg+filename+"_warp.nii")
-    # resultImage = resultImage.get_data()
-    # fixedImage = nib.load(dir_fixedimg_nii+filename+".nii")
-    # fixedImage = fixedImage.get_data()
-    #
-    # fig, ax = plt.subplots(1,4, sharex=True, sharey=True,figsize=(12,5))
-    # # plt.set_cmap(gray)
-    # ax[0].imshow(np.rot90(fixedImage),aspect="auto", cmap='gray')
-    # ax[0].set_title('fixedImage', fontsize=20)
-    # ax[1].imshow(np.rot90(resultImage),aspect="auto", cmap='gray')
-    # ax[1].set_title('resultImage', fontsize=20)
-    # ax[2].imshow(np.rot90(atlaslabel),aspect="auto", cmap='Accent')
-    # ax[2].set_title('atlaslabel', fontsize=20)
-    # ax[3].imshow(np.rot90(resultlabel),aspect="auto", cmap='Accent')
-    # ax[3].set_title('resultlabel', fontsize=20)
-    # plt.show()
-    # # fig.savefig(dir_figure+filename+'.png')
-    # pdb.set_trace()
